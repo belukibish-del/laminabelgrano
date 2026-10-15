@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lente DIA · Manuel Belgrano</title>
+<meta name="description" content="Enfocá la lámina de Manuel Belgrano con la Lente DIA de IA al Colorado y mirá a su humano digital hablando.">
+<script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<style>
+:root{--bg:#0e1a2e;--ink:#f3f6fb;--soft:#b6c3d9;--acc:#6db3ea}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+#start{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:1.5rem;padding-top:calc(1.5rem + env(safe-area-inset-top));gap:.9rem;background:var(--bg)}
+#start h1{font:700 clamp(1.8rem,7vw,2.8rem)/1.1 "Iowan Old Style",Palatino,Georgia,serif;margin:0}
+#start p{margin:0;max-width:30rem;color:var(--soft)}
+#start small{color:var(--soft);max-width:30rem}
+button{font:700 1.05rem system-ui;padding:.9rem 1.6rem;border-radius:.6rem;border:0;background:var(--acc);color:#0e1a2e;cursor:pointer}
+button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+#err{color:#ffb4a8;min-height:1.4rem}
+/* Cartel: franja propia debajo de la cámara, no tapa la imagen */
+#plate{position:fixed;left:0;right:0;bottom:0;z-index:10;background:rgba(14,26,46,.96);padding:.7rem 1rem calc(.7rem + env(safe-area-inset-bottom));text-align:center;display:none;border-top:3px solid var(--acc)}
+#plate b{display:block}
+#plate span{font-size:.85rem;color:var(--soft)}
+#scan{position:fixed;left:0;right:0;bottom:4.6rem;z-index:10;text-align:center;display:none;pointer-events:none}
+#scan span{background:rgba(14,26,46,.85);padding:.35rem .9rem;border-radius:99px;font-size:.95rem}
+#scan.hide{display:none!important}
+a-scene{position:fixed;inset:0 0 4.4rem 0}
+</style>
+</head>
+<body>
+
+<div id="start">
+  <h1>Lente DIA</h1>
+  <p>Enfocá la lámina de <b>Manuel Belgrano</b> con la cámara de tu celular y mirá a su humano digital hablando.</p>
+  <button id="go">Activar cámara</button>
+  <div id="err" role="alert"></div>
+  <small>Recreación digital educativa de IA al Colorado. Necesitás permitir la cámara. La imagen de la cámara se procesa en tu dispositivo.</small>
+</div>
+
+<a-scene id="scene" mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; filterMinCF:0.0001; filterBeta:0.001; uiLoading:no; uiScanning:no; uiError:no;"
+         color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+  <a-assets>
+    <video id="vid" src="video/belgrano.mp4" preload="auto" loop playsinline webkit-playsinline crossorigin="anonymous"></video>
+  </a-assets>
+  <a-camera position="0 0 0" look-controls="enabled: false" cursor="fuse: false; rayOrigin: mouse" raycaster="far: 10; objects: .clickable"></a-camera>
+  <!-- 1 unidad = ancho de la lámina. Alto de la lámina A4 = 1.414 -->
+  <a-entity id="target" mindar-image-target="targetIndex: 0">
+    <a-plane id="screen" src="#vid" position="0 0.17 0.01" width="0.9" height="0.9" material="shader: flat; transparent: false"></a-plane>
+  </a-entity>
+</a-scene>
+
+<div id="scan"><span>Apuntá a la lámina completa</span></div>
+<div id="plate"><b>Manuel Belgrano</b><span>Recreación digital educativa · IA al Colorado</span></div>
+
+<script>
+/* ===== Ajustes ===== */
+const CFG = {
+  video: "video/belgrano.mp4",
+  // Posición y tamaño del video sobre la lámina (1 = ancho de la lámina). Ajustalo según tu diseño final.
+  x: 0, y: 0.17, ancho: 0.9
+};
+const $ = s => document.querySelector(s);
+const vid = $("#vid"), screenEl = $("#screen"), scene = $("#scene");
+
+async function existe(url){ try{ const r = await fetch(url,{method:"HEAD"}); return r.ok }catch(e){ return false } }
+
+vid.addEventListener("loadedmetadata", () => {
+  const h = CFG.ancho * (vid.videoHeight / vid.videoWidth);
+  screenEl.setAttribute("width", CFG.ancho);
+  screenEl.setAttribute("height", h);
+  screenEl.setAttribute("position", `${CFG.x} ${CFG.y} 0.01`);
+});
+
+$("#go").addEventListener("click", async () => {
+  const err = $("#err"); err.textContent = "";
+  if(!(await existe("targets.mind"))){ err.textContent = "Falta el archivo targets.mind (ver README: se genera con la lámina)."; return }
+  if(!(await existe(CFG.video))){ err.textContent = "Falta el video: " + CFG.video; return }
+  $("#go").disabled = true; $("#go").textContent = "Iniciando…";
+  try{
+    // Desbloquea la reproducción con sonido en iOS/Android durante este toque
+    vid.muted = false; await vid.play(); vid.pause(); vid.currentTime = 0;
+    const sys = scene.systems["mindar-image-system"];
+    await sys.start();
+    $("#start").style.display = "none"; $("#plate").style.display = "block"; $("#scan").style.display = "block";
+  }catch(e){
+    $("#go").disabled = false; $("#go").textContent = "Activar cámara";
+    err.textContent = "No se pudo iniciar la cámara. Revisá el permiso y que la página esté en https.";
+  }
+});
+
+$("#target").addEventListener("targetFound", () => { $("#scan").classList.add("hide"); vid.play().catch(()=>{ vid.muted = true; vid.play() }) });
+$("#target").addEventListener("targetLost", () => { $("#scan").classList.remove("hide"); vid.pause() });
+</script>
+</body>
+</html>
